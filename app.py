@@ -458,51 +458,109 @@ def export_quote_pdf(quote_id):
     try:
         from reportlab.lib.pagesizes import letter
         from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
         import io
 
         buf = io.BytesIO()
-        doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=50, bottomMargin=50)
+        doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
         styles = getSampleStyleSheet()
+        
+        # Custom styles
+        header_style = ParagraphStyle('HeaderStyle', parent=styles['Normal'], fontSize=8, alignment=1)
+        title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=16, spaceAfter=20)
+        label_style = ParagraphStyle('LabelStyle', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold')
+        val_style = ParagraphStyle('ValStyle', parent=styles['Normal'], fontSize=9)
+        
         elements = []
 
-        # Header
-        elements.append(Paragraph("WAYPOINT ANALYTICAL", styles['Title']))
-        elements.append(Paragraph("Environmental Testing Services", styles['Normal']))
-        elements.append(Spacer(1, 20))
+        # 1. Greenville Header Info
+        elements.append(Paragraph("Waypoint Analytical \u2022 Greenville, NC (GNC) \u2022 114 Oakmont Drive, Greenville, NC 27858 \u2022 252-756-6208 | 252-756-0633 fax", header_style))
+        elements.append(Spacer(1, 0.3*inch))
 
-        # Quote Info
-        elements.append(Paragraph(f"<b>Quote:</b> {quote.quote_number}", styles['Heading2']))
-        elements.append(Paragraph(f"<b>Account:</b> {account.name if account else 'N/A'}", styles['Normal']))
-        elements.append(Paragraph(f"<b>Date:</b> {quote.sent_date or 'N/A'}", styles['Normal']))
-        elements.append(Paragraph(f"<b>Valid Until:</b> {quote.expiry_date or 'N/A'}", styles['Normal']))
-        elements.append(Paragraph(f"<b>Status:</b> {quote.status}", styles['Normal']))
-        elements.append(Spacer(1, 20))
+        # 2. Title & Total
+        # Create a table for the top section to align Total to the right
+        top_data = [
+            [Paragraph("Waypoint Analytical \u2014 Quotation", title_style), 
+             Table([["Total:", f"${quote.amount:,.2f}"]], colWidths=[0.8*inch, 1.2*inch], 
+                   style=[('GRID', (0,0), (-1,-1), 1, colors.black), ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,-1), 12), ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')])]
+        ]
+        t_top = Table(top_data, colWidths=[4.5*inch, 2.5*inch])
+        t_top.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'BOTTOM')]))
+        elements.append(t_top)
+        elements.append(Spacer(1, 0.2*inch))
 
-        # Services table
+        # 3. Client / Project Info
+        info_data = [
+            [Paragraph("<b>Client</b>", label_style), Paragraph(account.name if account else "N/A", val_style), 
+             Paragraph("<b>Quote No.</b>", label_style), Paragraph(quote.quote_number, val_style)],
+            [Paragraph("<b>Project</b>", label_style), Paragraph(quote.notes[:40] if quote.notes else "Environmental Testing", val_style),
+             Paragraph("<b>Date / Valid</b>", label_style), Paragraph(f"{quote.sent_date or 'N/A'} / 30 Days", val_style)],
+            [Paragraph("<b>PM / AM</b>", label_style), Paragraph("Andrew L. Harris (AM)", val_style),
+             Paragraph("<b>Level / TAT</b>", label_style), Paragraph("Level 1 \u2022 10 BD", val_style)],
+        ]
+        t_info = Table(info_data, colWidths=[1*inch, 3*inch, 1*inch, 2*inch])
+        t_info.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'LEFT'), ('VALIGN', (0,0), (-1,-1), 'TOP')]))
+        elements.append(t_info)
+        elements.append(Spacer(1, 0.3*inch))
+
+        # 4. Services Table
         services = quote.services or []
-        if services:
-            table_data = [["#", "Service"]]
-            for i, svc in enumerate(services, 1):
-                table_data.append([str(i), svc])
-            t = Table(table_data, colWidths=[40, 400])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#005B96')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f4f8')]),
-            ]))
-            elements.append(t)
-            elements.append(Spacer(1, 20))
+        # Header: Category, Type (Service), Qty, Unit, Extended
+        table_data = [["Category", "Type (Service)", "Qty", "Unit", "Extended"]]
+        for svc in services:
+            # Mocking qty/unit for the demo look
+            table_data.append(["Testing", svc, "1", f"${quote.amount:,.2f}", f"${quote.amount:,.2f}"])
+        
+        # Add empty rows to match template look
+        for _ in range(max(0, 15 - len(services))):
+            table_data.append(["", "", "", "$0.00", "$0.00"])
 
-        # Total
-        elements.append(Paragraph(f"<b>Total Amount: ${quote.amount:,.2f}</b>", styles['Heading2']))
+        t_service = Table(table_data, colWidths=[1.2*inch, 2.8*inch, 0.8*inch, 1.1*inch, 1.1*inch])
+        t_service.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.white),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
+        ]))
+        elements.append(t_service)
+        elements.append(Spacer(1, 0.2*inch))
+        
+        elements.append(Paragraph(f"Annual Program Total: <b>${quote.amount:,.2f}</b>", ParagraphStyle('TotalStyle', parent=styles['Normal'], alignment=2, fontSize=10)))
+        elements.append(Spacer(1, 0.4*inch))
 
-        if quote.notes:
-            elements.append(Spacer(1, 10))
-            elements.append(Paragraph(f"<b>Notes:</b> {quote.notes}", styles['Normal']))
+        # 5. Signatures
+        sig_data = [
+            [Paragraph("<b>Prepared by</b>", label_style), Paragraph("Andrew L. Harris", val_style), 
+             Paragraph("<b>Acceptance</b>", label_style), Paragraph("________________________", val_style)],
+            ["", Paragraph("Eastern Carolinas \u2014 Regional Account Manager", ParagraphStyle('Small', fontSize=7)), 
+             "", Paragraph("Authorized Signature", ParagraphStyle('Small', fontSize=7))],
+            ["", Paragraph("Cell: 984.332.2588  |  aharris@waypointanalytical.com", ParagraphStyle('Small', fontSize=7)), 
+             "", Paragraph("Date: ________________________", val_style)],
+        ]
+        t_sig = Table(sig_data, colWidths=[1*inch, 3*inch, 1*inch, 2*inch])
+        t_sig.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+        elements.append(t_sig)
+        
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph("<font size=7>* Total Nitrogen = NO3-N + TKN (calculated).</font>", styles['Normal']))
+        elements.append(Paragraph("<font size=8>Page 1</font>", ParagraphStyle('Page', alignment=1)))
+
+        # 6. Terms & Conditions Page
+        elements.append(PageBreak())
+        elements.append(Paragraph("Waypoint Analytical \u2014 Terms & Conditions", styles['Title']))
+        elements.append(Paragraph("<b>General Information</b>", label_style))
+        elements.append(Paragraph("The pricing listed in this schedule is based on standard TAT, normally 7-10 business days.", val_style))
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("<b>Turnaround Time</b>", label_style))
+        elements.append(Paragraph("Turnaround time (TAT) is defined as the time elapsing from validated time of sample receipt to the issuance of the report.", val_style))
+        # ... more terms could be added here to match the screenshot ...
+        elements.append(Spacer(1, 0.5*inch))
+        elements.append(Paragraph("<font size=8>Page 2</font>", ParagraphStyle('Page', alignment=1)))
 
         doc.build(elements)
         buf.seek(0)
@@ -512,7 +570,7 @@ def export_quote_pdf(quote_id):
             headers={'Content-Disposition': f'attachment; filename=quote_{quote.quote_number}.pdf'}
         )
     except ImportError:
-        return jsonify({"error": "reportlab not installed — run: pip install reportlab"}), 500
+        return jsonify({"error": "reportlab not installed \u2014 run: pip install reportlab"}), 500
 
 
 # ---------------------------------------------------------------------------

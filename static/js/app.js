@@ -115,7 +115,7 @@ function switchPersona(persona) {
         el.personaAshley.className = "px-3 py-1 text-sm font-medium rounded-full text-slate-400 hover:text-white transition-colors";
         el.userInitials.textContent = "AH";
     } else {
-        el.personaAshley.className = "px-3 py-1 text-sm font-medium rounded-full bg-purple-600 text-white transition-colors";
+        el.personaAshley.className = "px-3 py-1 text-sm font-medium rounded-full bg-brand-400 text-white transition-colors";
         el.personaAndrew.className = "px-3 py-1 text-sm font-medium rounded-full text-slate-400 hover:text-white transition-colors";
         el.userInitials.textContent = "AM";
     }
