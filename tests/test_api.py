@@ -196,7 +196,7 @@ class TestWrites:
             },
             content_type="application/json",
         )
-        assert res.status_code == 200
+        assert res.status_code == 201
         body = json.loads(res.data)
         assert body.get("status") == "success"
         assert "id" in body
@@ -218,7 +218,7 @@ class TestWrites:
             },
             content_type="application/json",
         )
-        assert res.status_code == 200
+        assert res.status_code == 201
         body = json.loads(res.data)
         assert body.get("status") == "success"
 
@@ -234,3 +234,34 @@ class TestUsers:
     def test_user_roles_unknown_user(self, client):
         res = client.get("/api/user/roles?username=nobody_real")
         assert res.status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# 7. HEALTH CHECK — Production readiness
+# --------------------------------------------------------------------------- #
+class TestHealth:
+    def test_health_returns_200(self, client):
+        res = client.get("/api/health")
+        assert res.status_code == 200
+        body = json.loads(res.data)
+        assert body["status"] == "healthy"
+        assert body["database"] == "connected"
+        assert "version" in body
+        assert "timestamp" in body
+
+
+# --------------------------------------------------------------------------- #
+# 8. INPUT VALIDATION — Write endpoints reject bad data
+# --------------------------------------------------------------------------- #
+class TestValidation:
+    def test_activity_rejects_missing_account_id(self, client):
+        res = client.post("/api/activities", json={"summary": "no account"},
+                          content_type="application/json")
+        assert res.status_code == 400
+        assert "account_id" in json.loads(res.data).get("error", "")
+
+    def test_quote_rejects_missing_quote_number(self, client):
+        res = client.post("/api/quotes", json={"account_id": 1},
+                          content_type="application/json")
+        assert res.status_code == 400
+        assert "quote_number" in json.loads(res.data).get("error", "")

@@ -1,7 +1,9 @@
 import os
 import json
 import time
-from datetime import datetime
+import uuid
+import logging
+from datetime import datetime, timezone
 from flask import Flask, jsonify, request, send_from_directory, Response
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -93,6 +95,77 @@ if HAS_ANTHROPIC and HAS_PHOENIX:
         AnthropicInstrumentor().instrument()
     except Exception:
         pass  # Phoenix is optional, don't crash on failure
+
+# Structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+)
+log = logging.getLogger("orbit")
+
+
+# ---------------------------------------------------------------------------
+# Middleware: Request ID tracing
+# ---------------------------------------------------------------------------
+
+@app.before_request
+def attach_request_id():
+    request.request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:8])
+
+
+@app.after_request
+def add_response_headers(response):
+    response.headers["X-Request-ID"] = getattr(request, "request_id", "")
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Centralized error handlers — API never returns HTML error pages
+# ---------------------------------------------------------------------------
+
+@app.errorhandler(400)
+def bad_request(e):
+    return jsonify({"error": str(e.description) if hasattr(e, 'description') else "Bad request"}), 400
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "Resource not found"}), 404
+
+
+@app.errorhandler(429)
+def rate_limited(e):
+    return jsonify({"error": "Rate limit exceeded. Try again later."}), 429
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    log.exception("Unhandled 500 error")
+    return jsonify({"error": "Internal server error"}), 500
+
+
+# ---------------------------------------------------------------------------
+# Route: Health Check (used by Render, uptime monitors, and SRE dashboards)
+# ---------------------------------------------------------------------------
+
+@app.route('/api/health', methods=['GET'])
+@limiter.exempt
+def health_check():
+    """Returns 200 if the app + database are reachable."""
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    status_code = 200 if db_ok else 503
+    return jsonify({
+        "status": "healthy" if db_ok else "degraded",
+        "database": "connected" if db_ok else "unreachable",
+        "version": "1.0.0",
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+    }), status_code
 
 
 # ---------------------------------------------------------------------------
@@ -216,25 +289,38 @@ def get_territory_health():
 @limiter.limit("10 per minute")
 def create_activity():
     data = request.json
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+    if not data.get('account_id'):
+        return jsonify({"error": "account_id is required"}), 400
+    if not data.get('activity_type'):
+        return jsonify({"error": "activity_type is required"}), 400
     activity = Activity(
-        account_id=data.get('account_id'),
-        activity_type=data.get('activity_type'),
-        summary=data.get('summary'),
+        account_id=data['account_id'],
+        activity_type=data['activity_type'],
+        summary=data.get('summary', ''),
         outcome=data.get('outcome', ''),
         activity_date=data.get('activity_date', datetime.now().strftime('%Y-%m-%d')),
     )
     db.session.add(activity)
     db.session.commit()
-    return jsonify({"status": "success", "id": activity.id})
+    log.info(f"Activity {activity.id} created for account {activity.account_id}")
+    return jsonify({"status": "success", "id": activity.id}), 201
 
 
 @app.route('/api/quotes', methods=['POST'])
 @limiter.limit("10 per minute")
 def create_quote():
     data = request.json
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+    if not data.get('account_id'):
+        return jsonify({"error": "account_id is required"}), 400
+    if not data.get('quote_number'):
+        return jsonify({"error": "quote_number is required"}), 400
     quote = Quote(
-        account_id=data.get('account_id'),
-        quote_number=data.get('quote_number'),
+        account_id=data['account_id'],
+        quote_number=data['quote_number'],
         services=data.get('services', []),
         amount=data.get('amount'),
         status=data.get('status', 'Draft'),
@@ -244,7 +330,8 @@ def create_quote():
     )
     db.session.add(quote)
     db.session.commit()
-    return jsonify({"status": "success", "id": quote.id})
+    log.info(f"Quote {quote.id} ({quote.quote_number}) created for account {quote.account_id}")
+    return jsonify({"status": "success", "id": quote.id}), 201
 
 
 # ---------------------------------------------------------------------------
@@ -361,7 +448,7 @@ Current user: {user_persona}
         return Response(generate(), mimetype='text/event-stream')
 
     except Exception as e:
-        print(f"Wizard Error: {str(e)}")
+        log.exception(f"Wizard error: {str(e)}")
         def err_stream():
             yield f"data: {{\"text\": \"Error contacting Wizard: {str(e)}\"}}\n\n"
             yield "data: {\"done\": true}\n\n"
@@ -370,4 +457,3 @@ Current user: {user_persona}
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-
