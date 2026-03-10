@@ -16,21 +16,27 @@ const el = {
     metricAccounts: document.getElementById('metric-accounts'),
     metricRisk: document.getElementById('metric-risk'),
     pipelineStages: document.getElementById('pipeline-stages'),
+    pipelineStageFlow: document.getElementById('pipeline-stage-flow'),
     
     // Middle Pane
     viewList: document.getElementById('view-account-list'),
     viewDetail: document.getElementById('view-account-detail'),
     listContainer: document.getElementById('account-list-container'),
+    searchInput: document.querySelector('#view-account-list input[type="text"]'),
     
     // Detail View
     detailName: document.getElementById('detail-name'),
     detailIndustry: document.getElementById('detail-industry'),
     detailTerritory: document.getElementById('detail-territory'),
     detailTier: document.getElementById('detail-tier'),
+    detailStageText: document.getElementById('detail-stage-text'),
     detailRevenue: document.getElementById('detail-revenue'),
+    detailHealthBar: document.getElementById('detail-health-bar'),
+    detailHealthScore: document.getElementById('detail-health-score'),
     detailContacts: document.getElementById('detail-contacts'),
     detailQuotes: document.getElementById('detail-quotes'),
     detailEdds: document.getElementById('detail-edds'),
+    detailActivities: document.getElementById('detail-activities'),
     
     // Right Pane (Wizard)
     chatHistory: document.getElementById('chat-history'),
@@ -45,10 +51,59 @@ const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount || 0);
 };
 
+function daysSince(dateStr) {
+    if (!dateStr) return 999;
+    const d = new Date(dateStr);
+    const now = new Date();
+    return Math.floor((now - d) / (1000 * 60 * 60 * 24));
+}
+
+function contactDotColor(lastContactDate) {
+    const days = daysSince(lastContactDate);
+    if (days <= 30) return { color: 'bg-emerald-500', border: 'border-emerald-400', label: `${days}d ago` };
+    if (days <= 60) return { color: 'bg-amber-500', border: 'border-amber-400', label: `${days}d ago` };
+    return { color: 'bg-red-500', border: 'border-red-400', label: days < 999 ? `${days}d ago` : 'Never' };
+}
+
+function healthColor(score) {
+    if (score >= 80) return { bg: 'bg-emerald-500', text: 'text-emerald-400' };
+    if (score >= 60) return { bg: 'bg-amber-500', text: 'text-amber-400' };
+    return { bg: 'bg-red-500', text: 'text-red-400' };
+}
+
+function activityIcon(type) {
+    const icons = {
+        'call': { icon: 'ph-phone', color: 'border-sky-500', bg: 'text-sky-400' },
+        'email': { icon: 'ph-envelope', color: 'border-violet-500', bg: 'text-violet-400' },
+        'site_visit': { icon: 'ph-map-pin', color: 'border-emerald-500', bg: 'text-emerald-400' },
+        'quote': { icon: 'ph-file-text', color: 'border-amber-500', bg: 'text-amber-400' },
+        'note': { icon: 'ph-note-pencil', color: 'border-slate-500', bg: 'text-slate-400' },
+        'meeting': { icon: 'ph-video-camera', color: 'border-teal-500', bg: 'text-teal-400' },
+    };
+    return icons[type] || { icon: 'ph-circle', color: 'border-slate-500', bg: 'text-slate-400' };
+}
+
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
     fetchTerritoryHealth();
     fetchAccounts();
+
+    // Wire search input
+    if (el.searchInput) {
+        el.searchInput.addEventListener('input', (e) => {
+            const q = e.target.value.toLowerCase();
+            if (!q) {
+                renderAccountsList(accountsList);
+                return;
+            }
+            const filtered = accountsList.filter(a =>
+                (a.name || '').toLowerCase().includes(q) ||
+                (a.industry || '').toLowerCase().includes(q) ||
+                (a.territory || '').toLowerCase().includes(q)
+            );
+            renderAccountsList(filtered);
+        });
+    }
 });
 
 // --- Actions ---
@@ -77,37 +132,81 @@ async function showAccountDetail(accountId) {
     currentAccount = accountId;
     
     try {
-        const [accRes, contactsRes, quotesRes, eddsRes] = await Promise.all([
+        const [accRes, contactsRes, quotesRes, eddsRes, activitiesRes] = await Promise.all([
             fetch(`/api/accounts/${accountId}`),
             fetch(`/api/accounts/${accountId}/contacts`),
             fetch(`/api/accounts/${accountId}/quotes`),
-            fetch(`/api/accounts/${accountId}/edd`)
+            fetch(`/api/accounts/${accountId}/edd`),
+            fetch(`/api/accounts/${accountId}/activities`)
         ]);
         
         const acc = await accRes.json();
         const contacts = await contactsRes.json();
         const quotes = await quotesRes.json();
         const edds = await eddsRes.json();
+        const activities = await activitiesRes.json();
         
         // Populate Header
         el.detailName.textContent = acc.name;
         el.detailIndustry.innerHTML = `<i class="ph ph-briefcase"></i> ${acc.industry || 'Unknown'}`;
         el.detailTerritory.innerHTML = `<i class="ph ph-map-pin"></i> ${acc.territory || 'Unassigned'}`;
         el.detailTier.textContent = acc.regulatory_tier || 'N/A';
+        el.detailStageText.textContent = acc.pipeline_stage || 'Unknown';
         el.detailRevenue.textContent = formatCurrency(acc.ytd_revenue);
         
-        // Populate Contacts
+        // Health Score Bar
+        const hs = acc.health_score || 0;
+        const hc = healthColor(hs);
+        el.detailHealthBar.className = `h-full rounded-full transition-all duration-500 ${hc.bg}`;
+        el.detailHealthBar.style.width = `${hs}%`;
+        el.detailHealthScore.textContent = hs;
+        el.detailHealthScore.className = `text-sm font-semibold ${hc.text}`;
+        
+        // Populate Contacts (with color dots)
         el.detailContacts.innerHTML = '';
         if (contacts.length === 0) {
             el.detailContacts.innerHTML = '<div class="text-sm text-slate-500 italic">No contacts found.</div>';
         } else {
             contacts.forEach(c => {
+                const dot = contactDotColor(c.last_contact_date);
                 el.detailContacts.innerHTML += `
                     <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
-                        <div class="font-medium text-white text-sm">${c.name}</div>
-                        <div class="text-xs text-brand-accent mb-2">${c.title || 'Contact'}</div>
-                        ${c.email ? `<div class="text-xs text-slate-400 flex items-center gap-1"><i class="ph ph-envelope-simple"></i> ${c.email}</div>` : ''}
-                        ${c.phone ? `<div class="text-xs text-slate-400 flex items-center gap-1 mt-1"><i class="ph ph-phone"></i> ${c.phone}</div>` : ''}
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="h-2.5 w-2.5 rounded-full ${dot.color} shrink-0" title="Last contact: ${dot.label}"></div>
+                            <div class="font-medium text-white text-sm">${c.name}</div>
+                        </div>
+                        <div class="text-xs text-brand-accent mb-2 pl-[18px]">${c.title || 'Contact'}</div>
+                        ${c.email ? `<div class="text-xs text-slate-400 flex items-center gap-1 pl-[18px]"><i class="ph ph-envelope-simple"></i> ${c.email}</div>` : ''}
+                        ${c.phone ? `<div class="text-xs text-slate-400 flex items-center gap-1 mt-1 pl-[18px]"><i class="ph ph-phone"></i> ${c.phone}</div>` : ''}
+                        <div class="text-[10px] text-slate-500 mt-1 pl-[18px]">${dot.label}</div>
+                    </div>
+                `;
+            });
+        }
+        
+        // Populate Activity Timeline
+        el.detailActivities.innerHTML = '';
+        if (activities.length === 0) {
+            el.detailActivities.innerHTML = '<div class="text-sm text-slate-500 italic">No activities found.</div>';
+        } else {
+            activities.forEach((a, idx) => {
+                const ai = activityIcon(a.activity_type);
+                const isLast = idx === activities.length - 1;
+                el.detailActivities.innerHTML += `
+                    <div class="relative pl-10 pb-4 ${!isLast ? '' : ''}">
+                        ${!isLast ? '<div class="absolute left-[15px] top-[28px] bottom-0 w-0.5 bg-slate-700/50"></div>' : ''}
+                        <div class="absolute left-[10px] top-[6px] w-[12px] h-[12px] rounded-full border-2 ${ai.color} bg-slate-900"></div>
+                        <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3 hover:bg-slate-800/70 transition-colors">
+                            <div class="flex items-center justify-between mb-1">
+                                <div class="flex items-center gap-2">
+                                    <i class="ph ${ai.icon} ${ai.bg} text-sm"></i>
+                                    <span class="text-xs font-medium text-slate-300 capitalize">${(a.activity_type || 'note').replace('_', ' ')}</span>
+                                </div>
+                                <span class="text-[10px] text-slate-500">${a.activity_date || 'Unknown date'}</span>
+                            </div>
+                            <p class="text-sm text-slate-300 leading-relaxed">${a.summary || 'No summary'}</p>
+                            ${a.outcome ? `<div class="text-xs text-slate-500 mt-1 italic">→ ${a.outcome}</div>` : ''}
+                        </div>
                     </div>
                 `;
             });
@@ -135,7 +234,7 @@ async function showAccountDetail(accountId) {
             });
         }
         
-        // Popoulate EDDs
+        // Populate EDDs
         el.detailEdds.innerHTML = '';
         if (edds.length === 0) {
             el.detailEdds.innerHTML = '<div class="text-sm text-slate-500 italic">No EDD submissions found.</div>';
@@ -171,6 +270,25 @@ async function showAccountDetail(accountId) {
     }
 }
 
+// --- Quick Actions (demo-ready stubs) ---
+
+function openQuickAction(type) {
+    const labels = { quote: 'New Quote', note: 'Add Note', activity: 'Log Activity', edd: 'EDD Formatter' };
+    const label = labels[type] || type;
+    
+    // For the demo: If Wizard is available, send a contextual query
+    if (currentAccount) {
+        const queries = {
+            quote: 'Help me draft a new quote for this account. What services should I recommend based on their history?',
+            note: 'What key observations should I document about this account right now?',
+            activity: 'Log a follow-up call with this account. What talking points should I cover?',
+            edd: 'What fields are missing or flagged on the EDD submission for this account?'
+        };
+        el.chatInput.value = queries[type] || `Help me with ${label} for this account.`;
+        submitChat();
+    }
+}
+
 // --- API Calls ---
 
 async function fetchTerritoryHealth() {
@@ -192,6 +310,19 @@ async function fetchTerritoryHealth() {
         pipeData.sort((a, b) => b.value - a.value);
         
         let totalValue = pipeData.reduce((sum, item) => sum + item.value, 0);
+        
+        // Update stage flow indicators — highlight stages that have accounts
+        if (el.pipelineStageFlow) {
+            const activeStages = new Set(pipeData.map(p => p.pipeline_stage));
+            el.pipelineStageFlow.querySelectorAll('[data-stage]').forEach(span => {
+                const stage = span.getAttribute('data-stage');
+                if (activeStages.has(stage)) {
+                    span.className = 'px-2 py-1 rounded bg-brand-500/20 text-brand-accent border border-brand-500/30 transition-all';
+                } else {
+                    span.className = 'px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all';
+                }
+            });
+        }
         
         pipeData.forEach(item => {
             if (!item.pipeline_stage) return;
@@ -232,11 +363,18 @@ function renderAccountsList(accounts) {
     const displayList = accounts.slice(0, 50);
     
     displayList.forEach(acc => {
-        let riskIndicator = acc.health_score < 60 ? '<div class="h-2 w-2 rounded-full bg-amber-500 mt-1.5 shrink-0"></div>' : '';
+        const hs = acc.health_score || 0;
+        const hc = healthColor(hs);
+        const days = daysSince(acc.last_contact_date);
+        const daysLabel = days < 999 ? `${days}d ago` : 'Never';
         
         el.listContainer.innerHTML += `
             <div class="bg-slate-800/60 hover:bg-slate-700/80 p-3 rounded-lg border border-slate-700/50 cursor-pointer transition-colors hover-lift flex gap-3" onclick="showAccountDetail(${acc.id})">
-                ${riskIndicator}
+                <div class="flex flex-col items-center gap-1 shrink-0 pt-0.5">
+                    <div class="w-8 h-8 rounded-lg ${hc.bg}/20 flex items-center justify-center border ${hc.bg === 'bg-emerald-500' ? 'border-emerald-500/30' : hc.bg === 'bg-amber-500' ? 'border-amber-500/30' : 'border-red-500/30'}">
+                        <span class="text-xs font-bold ${hc.text}">${hs}</span>
+                    </div>
+                </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex justify-between items-start mb-0.5">
                         <h3 class="font-semibold text-white truncate pr-2 text-sm">${acc.name}</h3>
@@ -244,7 +382,10 @@ function renderAccountsList(accounts) {
                     </div>
                     <div class="flex items-center justify-between text-xs text-slate-400">
                         <span class="truncate pr-2">${acc.industry || 'Unknown Industry'}</span>
-                        <span class="shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600">${acc.territory || 'Unassigned'}</span>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <span class="text-slate-500">${daysLabel}</span>
+                            <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 text-[10px]">${acc.pipeline_stage || 'Unknown'}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -253,6 +394,11 @@ function renderAccountsList(accounts) {
 }
 
 // --- Wizard Chat ---
+
+function sendChipQuery(queryText) {
+    el.chatInput.value = queryText;
+    submitChat();
+}
 
 function submitChat() {
     const query = el.chatInput.value.trim();
