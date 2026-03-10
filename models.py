@@ -21,6 +21,9 @@ class Account(db.Model):
     health_score = db.Column(db.Integer)
     ytd_revenue = db.Column(db.Float, default=0.0)
     last_contact_date = db.Column(db.Text)
+    source = db.Column(db.Text)          # e.g. "Referral", "Cold Outreach", "RFP"
+    channel = db.Column(db.Text)         # e.g. "Email", "Trade Show", "Web"
+    tags = db.Column(JSON, default=list) # e.g. ["PFAS", "Municipal", "At-Risk"]
     notes = db.Column(db.Text)
     created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
 
@@ -41,6 +44,9 @@ class Account(db.Model):
             "health_score": self.health_score,
             "ytd_revenue": self.ytd_revenue or 0.0,
             "last_contact_date": self.last_contact_date,
+            "source": self.source,
+            "channel": self.channel,
+            "tags": self.tags or [],
             "notes": self.notes,
             "created_at": self.created_at,
         }
@@ -56,6 +62,7 @@ class Contact(db.Model):
     email = db.Column(db.Text)
     phone = db.Column(db.Text)
     last_contact_date = db.Column(db.Text)
+    tags = db.Column(JSON, default=list)  # e.g. ["Decision Maker", "Technical"]
     notes = db.Column(db.Text)
 
     def to_dict(self):
@@ -67,6 +74,7 @@ class Contact(db.Model):
             "email": self.email,
             "phone": self.phone,
             "last_contact_date": self.last_contact_date,
+            "tags": self.tags or [],
             "notes": self.notes,
         }
 
@@ -141,6 +149,39 @@ class EddSubmission(db.Model):
             "format_type": self.format_type,
             "status": self.status,
             "field_flags": self.field_flags or [],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Task Model
+# ---------------------------------------------------------------------------
+
+class Task(db.Model):
+    __tablename__ = "tasks"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
+    title = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text)
+    due_date = db.Column(db.Text)
+    status = db.Column(db.Text, default="Open")       # Open, In Progress, Done
+    priority = db.Column(db.Text, default="Medium")    # Low, Medium, High, Urgent
+    assigned_to = db.Column(db.Text, default="Andrew Harris")
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+
+    account = db.relationship("Account", backref=db.backref("tasks", lazy=True, cascade="all, delete-orphan"))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "account_id": self.account_id,
+            "title": self.title,
+            "description": self.description,
+            "due_date": self.due_date,
+            "status": self.status,
+            "priority": self.priority,
+            "assigned_to": self.assigned_to,
+            "created_at": self.created_at,
         }
 
 

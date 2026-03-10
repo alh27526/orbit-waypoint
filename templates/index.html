@@ -300,6 +300,10 @@
                                     <i class="ph ph-flow-arrow"></i> <span id="detail-stage-text">Stage</span>
                                 </span>
                             </div>
+                            <!-- Source & Channel -->
+                            <div id="detailSource" class="flex flex-wrap items-center gap-1.5 mt-1.5"></div>
+                            <!-- Account Tags -->
+                            <div id="detailTags" class="flex flex-wrap gap-1.5 mt-1.5"></div>
                         </div>
                         <div class="text-right flex items-start gap-4">
                             <!-- Health Score -->
@@ -359,14 +363,13 @@
                         </div>
                     </div>
                     
-                    <!-- Quotes & EDDs Row -->
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Quotes, EDDs & Tasks Row -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div>
                             <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3 flex items-center gap-2">
                                 <i class="ph ph-file-text"></i> Recent Quotes
                             </h3>
                             <div id="detail-quotes" class="space-y-2">
-                                <!-- Populated by JS -->
                                 <div class="text-sm text-slate-500 italic">No quotes found.</div>
                             </div>
                         </div>
@@ -375,8 +378,15 @@
                                 <i class="ph ph-database"></i> EDD Submissions
                             </h3>
                             <div id="detail-edds" class="space-y-2">
-                                <!-- Populated by JS -->
                                 <div class="text-sm text-slate-500 italic">No EDD submissions found.</div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3 flex items-center gap-2">
+                                <i class="ph ph-checks"></i> Tasks
+                            </h3>
+                            <div id="detailTasks" class="space-y-2">
+                                <div class="text-sm text-slate-500 italic">No tasks.</div>
                             </div>
                         </div>
                     </div>

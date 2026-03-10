@@ -39,7 +39,7 @@ except ImportError:
 load_dotenv()
 
 # SQLAlchemy models — all tables now managed here
-from models import db, User, Account, Contact, Quote, Activity, EddSubmission
+from models import db, User, Account, Contact, Quote, Activity, EddSubmission, Task
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "super_secret_demo_key")
@@ -335,8 +335,214 @@ def create_quote():
 
 
 # ---------------------------------------------------------------------------
-# Route: Wizard AI
+# Routes: Tasks
 # ---------------------------------------------------------------------------
+
+@app.route('/api/tasks', methods=['GET'])
+def get_all_tasks():
+    status_filter = request.args.get('status')
+    query = Task.query.order_by(Task.due_date.asc())
+    if status_filter:
+        query = query.filter(Task.status == status_filter)
+    return jsonify([t.to_dict() for t in query.all()])
+
+
+@app.route('/api/accounts/<int:acc_id>/tasks', methods=['GET'])
+def get_account_tasks(acc_id):
+    tasks = Task.query.filter_by(account_id=acc_id).order_by(Task.due_date.asc()).all()
+    return jsonify([t.to_dict() for t in tasks])
+
+
+@app.route('/api/tasks', methods=['POST'])
+@limiter.limit("10 per minute")
+def create_task():
+    data = request.json
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+    if not data.get('title'):
+        return jsonify({"error": "title is required"}), 400
+    task = Task(
+        account_id=data.get('account_id'),
+        title=data['title'],
+        description=data.get('description', ''),
+        due_date=data.get('due_date'),
+        status=data.get('status', 'Open'),
+        priority=data.get('priority', 'Medium'),
+        assigned_to=data.get('assigned_to', 'Andrew Harris'),
+    )
+    db.session.add(task)
+    db.session.commit()
+    log.info(f"Task {task.id} created: {task.title}")
+    return jsonify({"status": "success", "id": task.id}), 201
+
+
+@app.route('/api/tasks/<int:task_id>', methods=['PATCH'])
+@limiter.limit("20 per minute")
+def update_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    data = request.json or {}
+    for field in ('title', 'description', 'due_date', 'status', 'priority', 'assigned_to'):
+        if field in data:
+            setattr(task, field, data[field])
+    db.session.commit()
+    return jsonify(task.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# Routes: Contacts (with duplicate detection)
+# ---------------------------------------------------------------------------
+
+@app.route('/api/contacts', methods=['POST'])
+@limiter.limit("10 per minute")
+def create_contact():
+    data = request.json
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+    if not data.get('account_id'):
+        return jsonify({"error": "account_id is required"}), 400
+    if not data.get('name'):
+        return jsonify({"error": "name is required"}), 400
+
+    # --- Duplicate detection (fuzzy match on name + email) ---
+    duplicates = []
+    name_lower = data['name'].strip().lower()
+    email_lower = (data.get('email') or '').strip().lower()
+
+    existing = Contact.query.filter_by(account_id=data['account_id']).all()
+    for c in existing:
+        score = 0
+        # Exact name match
+        if c.name.strip().lower() == name_lower:
+            score += 60
+        # Partial name match (first or last name overlap)
+        elif any(part in c.name.strip().lower().split() for part in name_lower.split() if len(part) > 2):
+            score += 30
+        # Email match
+        if email_lower and c.email and c.email.strip().lower() == email_lower:
+            score += 50
+        if score >= 50:
+            duplicates.append({"id": c.id, "name": c.name, "email": c.email, "score": score})
+
+    contact = Contact(
+        account_id=data['account_id'],
+        name=data['name'],
+        title=data.get('title', ''),
+        email=data.get('email', ''),
+        phone=data.get('phone', ''),
+        last_contact_date=data.get('last_contact_date'),
+        tags=data.get('tags', []),
+    )
+
+    if duplicates and not data.get('force'):
+        return jsonify({
+            "warning": "Potential duplicate contact(s) detected",
+            "duplicates": duplicates,
+            "hint": "Send again with force: true to create anyway",
+        }), 409
+
+    db.session.add(contact)
+    db.session.commit()
+    log.info(f"Contact {contact.id} ({contact.name}) created for account {contact.account_id}")
+    return jsonify({"status": "success", "id": contact.id}), 201
+
+
+# ---------------------------------------------------------------------------
+# Routes: Quote PDF Export
+# ---------------------------------------------------------------------------
+
+@app.route('/api/quotes/<int:quote_id>/pdf', methods=['GET'])
+def export_quote_pdf(quote_id):
+    quote = Quote.query.get_or_404(quote_id)
+    account = Account.query.get(quote.account_id)
+
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        import io
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=50, bottomMargin=50)
+        styles = getSampleStyleSheet()
+        elements = []
+
+        # Header
+        elements.append(Paragraph("WAYPOINT ANALYTICAL", styles['Title']))
+        elements.append(Paragraph("Environmental Testing Services", styles['Normal']))
+        elements.append(Spacer(1, 20))
+
+        # Quote Info
+        elements.append(Paragraph(f"<b>Quote:</b> {quote.quote_number}", styles['Heading2']))
+        elements.append(Paragraph(f"<b>Account:</b> {account.name if account else 'N/A'}", styles['Normal']))
+        elements.append(Paragraph(f"<b>Date:</b> {quote.sent_date or 'N/A'}", styles['Normal']))
+        elements.append(Paragraph(f"<b>Valid Until:</b> {quote.expiry_date or 'N/A'}", styles['Normal']))
+        elements.append(Paragraph(f"<b>Status:</b> {quote.status}", styles['Normal']))
+        elements.append(Spacer(1, 20))
+
+        # Services table
+        services = quote.services or []
+        if services:
+            table_data = [["#", "Service"]]
+            for i, svc in enumerate(services, 1):
+                table_data.append([str(i), svc])
+            t = Table(table_data, colWidths=[40, 400])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#005B96')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f4f8')]),
+            ]))
+            elements.append(t)
+            elements.append(Spacer(1, 20))
+
+        # Total
+        elements.append(Paragraph(f"<b>Total Amount: ${quote.amount:,.2f}</b>", styles['Heading2']))
+
+        if quote.notes:
+            elements.append(Spacer(1, 10))
+            elements.append(Paragraph(f"<b>Notes:</b> {quote.notes}", styles['Normal']))
+
+        doc.build(elements)
+        buf.seek(0)
+        return Response(
+            buf.getvalue(),
+            mimetype='application/pdf',
+            headers={'Content-Disposition': f'attachment; filename=quote_{quote.quote_number}.pdf'}
+        )
+    except ImportError:
+        return jsonify({"error": "reportlab not installed — run: pip install reportlab"}), 500
+
+
+# ---------------------------------------------------------------------------
+# Routes: Account/Contact Tags Update
+# ---------------------------------------------------------------------------
+
+@app.route('/api/accounts/<int:acc_id>/tags', methods=['PATCH'])
+@limiter.limit("20 per minute")
+def update_account_tags(acc_id):
+    account = Account.query.get_or_404(acc_id)
+    data = request.json or {}
+    if 'tags' in data:
+        account.tags = data['tags']
+    if 'source' in data:
+        account.source = data['source']
+    if 'channel' in data:
+        account.channel = data['channel']
+    db.session.commit()
+    return jsonify(account.to_dict())
+
+
+@app.route('/api/contacts/<int:contact_id>/tags', methods=['PATCH'])
+@limiter.limit("20 per minute")
+def update_contact_tags(contact_id):
+    contact = Contact.query.get_or_404(contact_id)
+    data = request.json or {}
+    if 'tags' in data:
+        contact.tags = data['tags']
+    db.session.commit()
+    return jsonify(contact.to_dict())
 
 @app.route('/api/wizard/query', methods=['POST'])
 @limiter.limit("20 per hour")        # protect Anthropic API key from exhaustion

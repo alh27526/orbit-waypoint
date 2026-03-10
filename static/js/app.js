@@ -132,12 +132,13 @@ async function showAccountDetail(accountId) {
     currentAccount = accountId;
     
     try {
-        const [accRes, contactsRes, quotesRes, eddsRes, activitiesRes] = await Promise.all([
+        const [accRes, contactsRes, quotesRes, eddsRes, activitiesRes, tasksRes] = await Promise.all([
             fetch(`/api/accounts/${accountId}`),
             fetch(`/api/accounts/${accountId}/contacts`),
             fetch(`/api/accounts/${accountId}/quotes`),
             fetch(`/api/accounts/${accountId}/edd`),
-            fetch(`/api/accounts/${accountId}/activities`)
+            fetch(`/api/accounts/${accountId}/activities`),
+            fetch(`/api/accounts/${accountId}/tasks`)
         ]);
         
         const acc = await accRes.json();
@@ -145,6 +146,7 @@ async function showAccountDetail(accountId) {
         const quotes = await quotesRes.json();
         const edds = await eddsRes.json();
         const activities = await activitiesRes.json();
+        const tasks = await tasksRes.json();
         
         // Populate Header
         el.detailName.textContent = acc.name;
@@ -161,6 +163,25 @@ async function showAccountDetail(accountId) {
         el.detailHealthBar.style.width = `${hs}%`;
         el.detailHealthScore.textContent = hs;
         el.detailHealthScore.className = `text-sm font-semibold ${hc.text}`;
+        
+        // Source & Channel badges
+        const sourceEl = document.getElementById('detailSource');
+        if (sourceEl) {
+            if (acc.source) {
+                sourceEl.innerHTML = `<span class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300"><i class="ph ph-broadcast"></i> ${acc.source}</span>`;
+                if (acc.channel) sourceEl.innerHTML += ` <span class="text-xs px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-400">${acc.channel}</span>`;
+            } else {
+                sourceEl.innerHTML = '';
+            }
+        }
+        
+        // Account Tags
+        const tagsEl = document.getElementById('detailTags');
+        if (tagsEl) {
+            tagsEl.innerHTML = (acc.tags || []).map(t =>
+                `<span class="text-[10px] px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-accent border border-brand-500/30">${t}</span>`
+            ).join('');
+        }
         
         // Populate Contacts (with color dots)
         el.detailContacts.innerHTML = '';
@@ -179,6 +200,7 @@ async function showAccountDetail(accountId) {
                         ${c.email ? `<div class="text-xs text-slate-400 flex items-center gap-1 pl-[18px]"><i class="ph ph-envelope-simple"></i> ${c.email}</div>` : ''}
                         ${c.phone ? `<div class="text-xs text-slate-400 flex items-center gap-1 mt-1 pl-[18px]"><i class="ph ph-phone"></i> ${c.phone}</div>` : ''}
                         <div class="text-[10px] text-slate-500 mt-1 pl-[18px]">${dot.label}</div>
+                        ${(c.tags || []).length ? `<div class="flex flex-wrap gap-1 mt-1.5 pl-[18px]">${c.tags.map(t => `<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-400">${t}</span>`).join('')}</div>` : ''}
                     </div>
                 `;
             });
@@ -225,9 +247,14 @@ async function showAccountDetail(accountId) {
                             <div class="font-medium font-mono text-slate-300">${q.quote_number}</div>
                             <div class="text-slate-500 text-xs mt-0.5">${q.sent_date || 'Draft'}</div>
                         </div>
-                        <div class="text-right">
-                            <div class="font-semibold text-white">${formatCurrency(q.amount)}</div>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded ${badgeClass}">${q.status}</span>
+                        <div class="text-right flex items-center gap-2">
+                            <div>
+                                <div class="font-semibold text-white">${formatCurrency(q.amount)}</div>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded ${badgeClass}">${q.status}</span>
+                            </div>
+                            <a href="/api/quotes/${q.id}/pdf" target="_blank" class="text-slate-400 hover:text-brand-accent transition-colors" title="Export PDF">
+                                <i class="ph ph-file-pdf text-lg"></i>
+                            </a>
                         </div>
                     </div>
                 `;
@@ -260,6 +287,33 @@ async function showAccountDetail(accountId) {
         // Update Wizard badge
         el.wizardText.textContent = acc.name;
         el.wizardBadge.classList.remove('hidden');
+        
+        // Populate Tasks
+        const tasksContainer = document.getElementById('detailTasks');
+        if (tasksContainer) {
+            tasksContainer.innerHTML = '';
+            if (tasks.length === 0) {
+                tasksContainer.innerHTML = '<div class="text-sm text-slate-500 italic">No tasks.</div>';
+            } else {
+                const priorityColors = { Urgent: 'border-red-500 text-red-400', High: 'border-amber-500 text-amber-400', Medium: 'border-brand-accent text-brand-accent', Low: 'border-slate-500 text-slate-400' };
+                tasks.forEach(t => {
+                    const pc = priorityColors[t.priority] || priorityColors.Medium;
+                    const isDone = t.status === 'Done';
+                    tasksContainer.innerHTML += `
+                        <div class="bg-slate-800/60 border-l-2 ${pc.split(' ')[0]} p-2.5 rounded text-sm ${isDone ? 'opacity-50' : ''}">
+                            <div class="flex items-center gap-2">
+                                <i class="ph ${isDone ? 'ph-check-circle text-emerald-400' : 'ph-circle-dashed'} ${pc.split(' ')[1]}"></i>
+                                <span class="text-slate-200 ${isDone ? 'line-through' : ''}">${t.title}</span>
+                            </div>
+                            <div class="flex justify-between mt-1 pl-6">
+                                <span class="text-[10px] text-slate-500">${t.due_date || 'No due date'}</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded ${t.priority === 'Urgent' ? 'bg-red-500/20 text-red-400' : t.priority === 'High' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-400'}">${t.priority}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+        }
         
         // Transition panes
         el.viewList.style.transform = 'translateX(-100%)';
