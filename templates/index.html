@@ -37,145 +37,7 @@
         }
     </script>
 
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
-            overflow: hidden; /* Prevent body scroll */
-        }
-
-        /* Glassmorphism pane styles */
-        .glass-pane {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-        }
-
-        /* Slim Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(15, 23, 42, 0.5);
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(71, 85, 105, 0.5);
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(148, 163, 184, 0.8);
-        }
-
-        /* Animated loading dots */
-        .dot-flashing {
-            position: relative;
-            width: 6px;
-            height: 6px;
-            border-radius: 3px;
-            background-color: #00A5B5;
-            color: #00A5B5;
-            animation: dot-flashing 1s infinite linear alternate;
-            animation-delay: 0.5s;
-        }
-        .dot-flashing::before, .dot-flashing::after {
-            content: '';
-            display: inline-block;
-            position: absolute;
-            top: 0;
-            width: 6px;
-            height: 6px;
-            border-radius: 3px;
-            background-color: #00A5B5;
-            color: #00A5B5;
-            animation: dot-flashing 1s infinite alternate;
-        }
-        .dot-flashing::before {
-            left: -10px;
-            animation-delay: 0s;
-        }
-        .dot-flashing::after {
-            left: 10px;
-            animation-delay: 1s;
-        }
-        @keyframes dot-flashing {
-            0% { background-color: #00A5B5; }
-            50%, 100% { background-color: rgba(0, 165, 181, 0.2); }
-        }
-
-        /* Timeline styles */
-        .timeline-line {
-            position: absolute;
-            left: 15px;
-            top: 32px;
-            bottom: 0;
-            width: 2px;
-            background: linear-gradient(to bottom, #334155 0%, transparent 100%);
-        }
-        .timeline-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            border: 2px solid;
-            position: absolute;
-            left: 11px;
-            top: 6px;
-            background: #0f172a;
-        }
-
-        /* Markdown Styles for Wizard */
-        .prose pre {
-            background-color: #0f172a;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            overflow-x: auto;
-            border: 1px solid #334155;
-            margin: 0.5rem 0;
-        }
-        .prose code {
-            background-color: #1e293b;
-            padding: 0.125rem 0.25rem;
-            border-radius: 0.25rem;
-            color: #00A5B5;
-            font-family: monospace;
-            font-size: 0.875rem;
-        }
-        .prose a {
-            color: #00A5B5;
-            text-decoration: underline;
-        }
-        .prose table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-            font-size: 0.875rem;
-        }
-        .prose th, .prose td {
-            border: 1px solid #334155;
-            padding: 0.5rem;
-            text-align: left;
-        }
-        .prose th { background-color: #1e293b; }
-        .prose p { margin-bottom: 0.75rem; }
-        .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
-        .prose ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
-        .prose h3 { font-size: 1.125rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; color: #e2e8f0; }
-
-        .hover-lift {
-            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .hover-lift:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-        }
-        
-    </style>
+    <link rel="stylesheet" href="/static/css/orbit.css">
 </head>
 <body class="h-screen w-screen flex flex-col p-4 gap-4 box-border">
 
@@ -212,17 +74,17 @@
                 <h2 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-4">Territory Health</h2>
                 
                 <div class="space-y-4">
-                    <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                    <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 hover-lift transition-all cursor-default">
                         <div class="text-sm text-slate-400 mb-1">YTD Revenue</div>
                         <div id="metric-revenue" class="text-2xl font-semibold text-brand-accent">$0</div>
                     </div>
                     
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                        <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 hover-lift transition-all cursor-default">
                             <div class="text-xs text-slate-400 mb-1">Accounts</div>
                             <div id="metric-accounts" class="text-lg font-medium">0</div>
                         </div>
-                        <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                        <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 hover-lift transition-all cursor-default">
                             <div class="text-xs text-slate-400 mb-1">At Risk</div>
                             <div id="metric-risk" class="text-lg font-medium text-amber-500">0</div>
                         </div>
@@ -234,13 +96,13 @@
                 <h2 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-3">Pipeline by Stage</h2>
                 <!-- Stage flow indicators -->
                 <div id="pipeline-stage-flow" class="flex items-center gap-1 mb-4 text-[10px] font-semibold uppercase tracking-wider">
-                    <span data-stage="Prospect" class="px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all">Prospect</span>
+                    <span data-stage="Prospect" class="px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all hover-lift cursor-default">Prospect</span>
                     <i class="ph ph-caret-right text-slate-600 text-[8px]"></i>
-                    <span data-stage="Quoted" class="px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all">Quoted</span>
+                    <span data-stage="Quoted" class="px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all hover-lift cursor-default">Quoted</span>
                     <i class="ph ph-caret-right text-slate-600 text-[8px]"></i>
-                    <span data-stage="Active" class="px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all">Active</span>
+                    <span data-stage="Active" class="px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all hover-lift cursor-default">Active</span>
                     <i class="ph ph-caret-right text-slate-600 text-[8px]"></i>
-                    <span data-stage="Retained" class="px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all">Retained</span>
+                    <span data-stage="Retained" class="px-2 py-1 rounded bg-slate-800 text-slate-500 border border-slate-700 transition-all hover-lift cursor-default">Retained</span>
                 </div>
                 <div id="pipeline-stages" class="space-y-3">
                     <!-- Populated by JS -->
@@ -270,9 +132,9 @@
                     <h2 class="font-semibold text-lg flex items-center gap-2">
                         <i class="ph ph-buildings text-brand-accent"></i> Active Accounts
                     </h2>
-                    <div class="relative">
-                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" placeholder="Search accounts..." class="bg-slate-900 border border-slate-600 rounded-full pl-9 pr-4 py-1.5 text-sm w-64 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 placeholder-slate-500">
+                    <div class="relative group">
+                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-500 transition-colors"></i>
+                        <input type="text" placeholder="Search accounts..." class="bg-slate-900 border border-slate-600 rounded-full pl-9 pr-4 py-1.5 text-sm w-64 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 placeholder-slate-500 transition-all duration-300 focus:w-72 shadow-inner focus:shadow-brand-500/20">
                     </div>
                 </div>
                 
@@ -295,6 +157,13 @@
                                 <span id="detail-industry" class="flex items-center gap-1"><i class="ph ph-briefcase"></i> Industry</span>
                                 <span id="detail-territory" class="flex items-center gap-1"><i class="ph ph-map-pin"></i> Territory</span>
                                 <span id="detail-tier" class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs border border-slate-600">Tier</span>
+                                <!-- Added TAT & Incumbent badges -->
+                                <span id="detail-tat" class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs border border-slate-700 flex items-center gap-1 hidden">
+                                    <i class="ph ph-hourglass-low"></i> <span id="detail-tat-text"></span>
+                                </span>
+                                <span id="detail-incumbent" class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs border border-slate-700 flex items-center gap-1 hidden">
+                                    <i class="ph ph-buildings"></i> <span id="detail-incumbent-text"></span>
+                                </span>
                                 <!-- Pipeline Stage Badge -->
                                 <span id="detail-stage" class="px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-accent text-xs border border-brand-500/30 flex items-center gap-1">
                                     <i class="ph ph-flow-arrow"></i> <span id="detail-stage-text">Stage</span>
@@ -442,20 +311,20 @@
             </div>
             
             <!-- Quick Query Chips -->
-            <div id="wizard-chips" class="px-4 py-2 border-t border-slate-700/30 flex flex-wrap gap-1.5 shrink-0">
-                <button onclick="sendChipQuery('Give me a full summary of this account.')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-600/50 hover:border-slate-500 transition-all flex items-center gap-1">
+            <div id="wizard-chips" class="px-4 py-3 border-t border-slate-700/30 flex flex-wrap gap-2 shrink-0 bg-slate-800/20">
+                <button onclick="sendChipQuery('Give me a full summary of this account.')" class="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-brand-900 border border-slate-600/50 hover:border-brand-500/50 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-1.5 hover-lift">
                     <i class="ph ph-clipboard-text text-brand-accent"></i> Account Summary
                 </button>
-                <button onclick="sendChipQuery('Generate a quick quote recommendation for this account based on their history and open services.')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-600/50 hover:border-slate-500 transition-all flex items-center gap-1">
+                <button onclick="sendChipQuery('Generate a quick quote recommendation for this account based on their history and open services.')" class="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-brand-900 border border-slate-600/50 hover:border-brand-500/50 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-1.5 hover-lift">
                     <i class="ph ph-file-text text-brand-accent"></i> Quick Quote
                 </button>
-                <button onclick="sendChipQuery('Which accounts are most at risk in my territory this week?')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-600/50 hover:border-slate-500 transition-all flex items-center gap-1">
+                <button onclick="sendChipQuery('Which accounts are most at risk in my territory this week?')" class="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-amber-900/40 border border-slate-600/50 hover:border-amber-500/50 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-1.5 hover-lift">
                     <i class="ph ph-warning-circle text-amber-400"></i> At-Risk
                 </button>
             </div>
 
             <!-- Input Area -->
-            <div class="p-4 border-t border-slate-700/50 bg-slate-800/30 backdrop-blur-md shrink-0">
+            <div class="p-4 border-t border-slate-700/50 bg-slate-800/40 backdrop-blur-md shrink-0">
                 <form id="chat-form" class="relative">
                     <textarea 
                         id="chat-input" 

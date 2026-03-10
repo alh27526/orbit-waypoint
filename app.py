@@ -698,7 +698,7 @@ Current user: {user_persona}
 
         def generate():
             response = client.messages.create(
-                model="claude-opus-4-5",
+                model="claude-3-7-sonnet-20250219",
                 max_tokens=1000,
                 system=system_prompt,
                 messages=[{"role": "user", "content": query}],

@@ -132,7 +132,7 @@ async function showAccountDetail(accountId) {
     currentAccount = accountId;
     
     try {
-        const [accRes, contactsRes, quotesRes, eddsRes, activitiesRes, tasksRes] = await Promise.all([
+        const responses = await Promise.all([
             fetch(`/api/accounts/${accountId}`),
             fetch(`/api/accounts/${accountId}/contacts`),
             fetch(`/api/accounts/${accountId}/quotes`),
@@ -140,6 +140,14 @@ async function showAccountDetail(accountId) {
             fetch(`/api/accounts/${accountId}/activities`),
             fetch(`/api/accounts/${accountId}/tasks`)
         ]);
+        
+        if (responses.some(r => r.status === 429)) {
+            console.error("Rate limit exceeded while loading account details.");
+            alert("Rate limit exceeded. Please wait a moment and try again.");
+            return;
+        }
+        
+        const [accRes, contactsRes, quotesRes, eddsRes, activitiesRes, tasksRes] = responses;
         
         const acc = await accRes.json();
         const contacts = await contactsRes.json();
@@ -152,10 +160,36 @@ async function showAccountDetail(accountId) {
         el.detailName.textContent = acc.name;
         el.detailIndustry.innerHTML = `<i class="ph ph-briefcase"></i> ${acc.industry || 'Unknown'}`;
         el.detailTerritory.innerHTML = `<i class="ph ph-map-pin"></i> ${acc.territory || 'Unassigned'}`;
-        el.detailTier.textContent = acc.regulatory_tier || 'N/A';
+        el.detailTier.textContent = acc.regulatory_tier || 'Standard';
         el.detailStageText.textContent = acc.pipeline_stage || 'Unknown';
         el.detailRevenue.textContent = formatCurrency(acc.ytd_revenue);
+    
+        // TAT and Incumbent Logic
+        const tatBadge = document.getElementById('detail-tat');
+        const tatText = document.getElementById('detail-tat-text');
+        if (acc.avg_tat_days > 0) {
+            tatText.textContent = `${acc.avg_tat_days}d TAT`;
+            tatBadge.classList.remove('hidden');
+            if (acc.avg_tat_days >= 7) {
+                tatBadge.classList.replace('text-slate-300', 'text-amber-400');
+                tatBadge.classList.replace('bg-slate-800', 'bg-amber-900/30');
+                tatBadge.classList.replace('border-slate-700', 'border-amber-500/30');
+            } else {
+                tatBadge.className = 'px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs border border-slate-700 flex items-center gap-1';
+            }
+        } else {
+            tatBadge.classList.add('hidden');
+        }
         
+        const incBadge = document.getElementById('detail-incumbent');
+        const incText = document.getElementById('detail-incumbent-text');
+        if (acc.incumbent_lab) {
+            incText.textContent = `Incumbent: ${acc.incumbent_lab}`;
+            incBadge.classList.remove('hidden');
+        } else {
+            incBadge.classList.add('hidden');
+        }
+
         // Health Score Bar
         const hs = acc.health_score || 0;
         const hc = healthColor(hs);
@@ -348,6 +382,11 @@ function openQuickAction(type) {
 async function fetchTerritoryHealth() {
     try {
         const res = await fetch('/api/territory/health');
+        if (res.status === 429) {
+            console.error("Rate limit exceeded while fetching territory health.");
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
         const data = await res.json();
         
         el.metricRevenue.textContent = formatCurrency(data.ytd_revenue);
@@ -356,6 +395,11 @@ async function fetchTerritoryHealth() {
         
         // Also fetch pipeline summary
         const pipeRes = await fetch('/api/pipeline/summary');
+        if (pipeRes.status === 429) {
+            console.error("Rate limit exceeded while fetching pipeline summary.");
+            return;
+        }
+        if (!pipeRes.ok) throw new Error(`HTTP error: ${pipeRes.status}`);
         const pipeData = await pipeRes.json();
         
         el.pipelineStages.innerHTML = '';
@@ -403,6 +447,11 @@ async function fetchTerritoryHealth() {
 async function fetchAccounts() {
     try {
         const res = await fetch('/api/accounts');
+        if (res.status === 429) {
+            console.error("Rate limit exceeded while fetching accounts.");
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
         accountsList = await res.json();
         renderAccountsList(accountsList);
     } catch (err) {
@@ -479,6 +528,14 @@ function submitChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     }).then(response => {
+        if (response.status === 429) {
+            el.typingIndicator.classList.add('hidden');
+            appendMessage('assistant', `*Rate limit exceeded. Please wait a moment before sending another query.*`);
+            return;
+        }
+        if (!response.ok) {
+            throw new Error(`HTTP Error ${response.status}`);
+        }
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
         
@@ -534,30 +591,52 @@ function submitChat() {
 
 function appendMessage(role, content) {
     const isUser = role === 'user';
-    const icon = isUser ? `<div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0 border border-slate-600 font-bold text-xs">${el.userInitials.textContent}</div>` 
-                        : `<div class="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700"><i class="ph-fill ph-magic-wand text-brand-accent text-sm"></i></div>`;
-                        
-    const html = `
-        <div class="flex gap-3 max-w-[90%] ${isUser ? 'ml-auto flex-row-reverse' : ''}">
-            ${icon}
-            <div class="${isUser ? 'bg-brand-600 text-white rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-white rounded-tl-none'} p-3 rounded-2xl text-sm leading-relaxed prose prose-invert max-w-none">
-                ${isUser ? escapeHtml(content) : marked.parse(content)}
-            </div>
-        </div>
-    `;
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `flex gap-3 max-w-[90%] ${isUser ? 'ml-auto flex-row-reverse' : ''} animate-fade-in-up`;
     
-    el.chatHistory.insertAdjacentHTML('beforeend', html);
+    // Icon
+    const iconDiv = document.createElement('div');
+    iconDiv.className = `h-8 w-8 rounded-full flex items-center justify-center shrink-0 border shadow-sm ${
+        isUser ? 'bg-brand-600 border-brand-500 shadow-brand-500/20' : 'bg-slate-800 border-slate-600 shadow-black/20'
+    }`;
+    iconDiv.innerHTML = isUser 
+        ? `<span class="text-xs font-bold text-white">${document.getElementById('user-initials').textContent || 'U'}</span>`
+        : `<i class="ph-fill ph-magic-wand text-brand-accent text-sm"></i>`;
+    
+    // Bubble
+    const bubbleDiv = document.createElement('div');
+    bubbleDiv.className = `border p-3.5 text-sm leading-relaxed shadow-md ${
+        isUser 
+            ? 'bg-gradient-to-br from-brand-600 to-brand-700 border-brand-500 text-white rounded-2xl rounded-tr-sm' 
+            : 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/80 text-white rounded-2xl rounded-tl-sm prose prose-invert max-w-none'
+    }`;
+    
+    if (isUser) {
+        bubbleDiv.textContent = content;
+    } else {
+        const mdDiv = document.createElement('div');
+        mdDiv.classList.add('markdown-body');
+        mdDiv.innerHTML = marked.parse(content);
+        bubbleDiv.appendChild(mdDiv);
+    }
+    
+    msgDiv.appendChild(iconDiv);
+    msgDiv.appendChild(bubbleDiv);
+    
+    el.chatHistory.appendChild(msgDiv);
     scrollToBottom();
+    
+    return bubbleDiv; // Return bubble so we can update it during stream
 }
 
 function appendEmptyAssistantMessage(id) {
     const html = `
-        <div class="flex gap-3 max-w-[90%]">
-            <div class="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700">
+        <div class="flex gap-3 max-w-[90%] animate-fade-in-up">
+            <div class="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-600 shadow-sm shadow-black/20">
                 <i class="ph-fill ph-magic-wand text-brand-accent text-sm"></i>
             </div>
-            <div id="${id}" class="bg-slate-800 border border-slate-700 text-white p-3 rounded-2xl rounded-tl-none text-sm leading-relaxed prose prose-invert max-w-none">
-                ... 
+            <div id="${id}" class="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/80 text-white p-3.5 rounded-2xl rounded-tl-sm text-sm leading-relaxed prose prose-invert max-w-none shadow-md">
+                <div class="dot-flashing"></div>
             </div>
         </div>
     `;
