@@ -1,8 +1,152 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import JSON
+from sqlalchemy import JSON, func
+from datetime import datetime
 
 db = SQLAlchemy()
 
+
+# ---------------------------------------------------------------------------
+# CRM Models
+# ---------------------------------------------------------------------------
+
+class Account(db.Model):
+    __tablename__ = "accounts"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.Text, nullable=False)
+    industry = db.Column(db.Text)
+    regulatory_tier = db.Column(db.Text)
+    territory = db.Column(db.Text)
+    pipeline_stage = db.Column(db.Text)
+    health_score = db.Column(db.Integer)
+    ytd_revenue = db.Column(db.Float, default=0.0)
+    last_contact_date = db.Column(db.Text)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.Text, default=lambda: datetime.utcnow().isoformat())
+
+    # Relationships
+    contacts = db.relationship("Contact", backref="account", lazy=True, cascade="all, delete-orphan")
+    quotes = db.relationship("Quote", backref="account", lazy=True, cascade="all, delete-orphan")
+    activities = db.relationship("Activity", backref="account", lazy=True, cascade="all, delete-orphan")
+    edd_submissions = db.relationship("EddSubmission", backref="account", lazy=True, cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "industry": self.industry,
+            "regulatory_tier": self.regulatory_tier,
+            "territory": self.territory,
+            "pipeline_stage": self.pipeline_stage,
+            "health_score": self.health_score,
+            "ytd_revenue": self.ytd_revenue or 0.0,
+            "last_contact_date": self.last_contact_date,
+            "notes": self.notes,
+            "created_at": self.created_at,
+        }
+
+
+class Contact(db.Model):
+    __tablename__ = "contacts"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    title = db.Column(db.Text)
+    email = db.Column(db.Text)
+    phone = db.Column(db.Text)
+    last_contact_date = db.Column(db.Text)
+    notes = db.Column(db.Text)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "account_id": self.account_id,
+            "name": self.name,
+            "title": self.title,
+            "email": self.email,
+            "phone": self.phone,
+            "last_contact_date": self.last_contact_date,
+            "notes": self.notes,
+        }
+
+
+class Quote(db.Model):
+    __tablename__ = "quotes"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
+    quote_number = db.Column(db.Text)
+    services = db.Column(JSON, default=list)   # stored as JSON array natively
+    amount = db.Column(db.Float)
+    status = db.Column(db.Text, default="Draft")
+    sent_date = db.Column(db.Text)
+    expiry_date = db.Column(db.Text)
+    notes = db.Column(db.Text)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "account_id": self.account_id,
+            "quote_number": self.quote_number,
+            "services": self.services or [],
+            "amount": self.amount,
+            "status": self.status,
+            "sent_date": self.sent_date,
+            "expiry_date": self.expiry_date,
+            "notes": self.notes,
+        }
+
+
+class Activity(db.Model):
+    __tablename__ = "activities"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
+    activity_type = db.Column(db.Text)
+    summary = db.Column(db.Text)
+    outcome = db.Column(db.Text)
+    activity_date = db.Column(db.Text)
+    created_by = db.Column(db.Text, default="Andrew Harris")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "account_id": self.account_id,
+            "activity_type": self.activity_type,
+            "summary": self.summary,
+            "outcome": self.outcome,
+            "activity_date": self.activity_date,
+            "created_by": self.created_by,
+        }
+
+
+class EddSubmission(db.Model):
+    __tablename__ = "edd_submissions"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
+    project_name = db.Column(db.Text)
+    submission_date = db.Column(db.Text)
+    format_type = db.Column(db.Text)
+    status = db.Column(db.Text)
+    field_flags = db.Column(JSON, default=list)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "account_id": self.account_id,
+            "project_name": self.project_name,
+            "submission_date": self.submission_date,
+            "format_type": self.format_type,
+            "status": self.status,
+            "field_flags": self.field_flags or [],
+        }
+
+
+# ---------------------------------------------------------------------------
+# User / Auth Model
+# ---------------------------------------------------------------------------
 
 class User(db.Model):
     __tablename__ = "users"
