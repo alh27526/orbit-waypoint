@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbit CRM | Waypoint Analytical</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Marked.js for Markdown Rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                            dark: '#0f172a',
+                            panel: '#1e293b',
+                            accent: '#38bdf8'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow: hidden; /* Prevent body scroll */
+        }
+
+        /* Glassmorphism pane styles */
+        .glass-pane {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+        }
+
+        /* Slim Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(71, 85, 105, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.8);
+        }
+
+        /* Animated loading dots */
+        .dot-flashing {
+            position: relative;
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            background-color: #38bdf8;
+            color: #38bdf8;
+            animation: dot-flashing 1s infinite linear alternate;
+            animation-delay: 0.5s;
+        }
+        .dot-flashing::before, .dot-flashing::after {
+            content: '';
+            display: inline-block;
+            position: absolute;
+            top: 0;
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            background-color: #38bdf8;
+            color: #38bdf8;
+            animation: dot-flashing 1s infinite alternate;
+        }
+        .dot-flashing::before {
+            left: -10px;
+            animation-delay: 0s;
+        }
+        .dot-flashing::after {
+            left: 10px;
+            animation-delay: 1s;
+        }
+        @keyframes dot-flashing {
+            0% { background-color: #38bdf8; }
+            50%, 100% { background-color: rgba(56, 189, 248, 0.2); }
+        }
+
+        /* Markdown Styles for Wizard */
+        .prose pre {
+            background-color: #0f172a;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            border: 1px solid #334155;
+            margin: 0.5rem 0;
+        }
+        .prose code {
+            background-color: #1e293b;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            color: #38bdf8;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
+        .prose a {
+            color: #38bdf8;
+            text-decoration: underline;
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+        .prose th, .prose td {
+            border: 1px solid #334155;
+            padding: 0.5rem;
+            text-align: left;
+        }
+        .prose th { background-color: #1e293b; }
+        .prose p { margin-bottom: 0.75rem; }
+        .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+        .prose ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+        .prose h3 { font-size: 1.125rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; color: #e2e8f0; }
+
+        .hover-lift {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .hover-lift:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+        
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col p-4 gap-4 box-border">
+
+    <!-- Top Navigation Bar -->
+    <header class="glass-pane w-full h-16 flex items-center justify-between px-6 shrink-0 z-10">
+        <div class="flex items-center gap-3">
+            <i class="ph-fill ph-planet text-brand-accent text-3xl animate-pulse"></i>
+            <h1 class="text-xl font-bold tracking-tight">Orbit <span class="text-slate-400 font-normal">| Waypoint Analytical</span></h1>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Persona Switcher -->
+            <div class="flex items-center gap-2 bg-slate-800 rounded-full p-1 border border-slate-700">
+                <button id="btn-persona-andrew" class="px-3 py-1 text-sm font-medium rounded-full bg-brand-500 text-white transition-colors" onclick="switchPersona('Andrew')">
+                    <i class="ph ph-code mr-1"></i> Technical (Andrew)
+                </button>
+                <button id="btn-persona-ashley" class="px-3 py-1 text-sm font-medium rounded-full text-slate-400 hover:text-white transition-colors" onclick="switchPersona('Ashley')">
+                    <i class="ph ph-chart-line-up mr-1"></i> Strategic (Ashley)
+                </button>
+            </div>
+            
+            <div class="h-8 w-8 rounded-full bg-gradient-to-tr from-brand-600 to-brand-accent flex items-center justify-center border-2 border-slate-700 shadow-lg cursor-pointer">
+                <span id="user-initials" class="text-sm font-bold">AH</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 3-Pane Layout Container -->
+    <main class="flex-1 flex gap-4 h-[calc(100vh-6rem)] overflow-hidden">
+        
+        <!-- PANE 1: Territory Health & Pipeline (Left) -->
+        <aside class="glass-pane w-72 flex flex-col shrink-0 overflow-y-auto">
+            <div class="p-5 border-b border-slate-700/50">
+                <h2 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-4">Territory Health</h2>
+                
+                <div class="space-y-4">
+                    <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                        <div class="text-sm text-slate-400 mb-1">YTD Revenue</div>
+                        <div id="metric-revenue" class="text-2xl font-semibold text-brand-accent">$0</div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                            <div class="text-xs text-slate-400 mb-1">Accounts</div>
+                            <div id="metric-accounts" class="text-lg font-medium">0</div>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                            <div class="text-xs text-slate-400 mb-1">At Risk</div>
+                            <div id="metric-risk" class="text-lg font-medium text-amber-500">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-5">
+                <h2 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-4">Pipeline by Stage</h2>
+                <div id="pipeline-stages" class="space-y-3">
+                    <!-- Populated by JS -->
+                    <div class="animate-pulse flex space-x-4">
+                        <div class="flex-1 space-y-3 py-1">
+                          <div class="h-2 bg-slate-700 rounded w-3/4"></div>
+                          <div class="h-2 bg-slate-700 rounded"></div>
+                          <div class="h-2 bg-slate-700 rounded w-5/6"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-5 mt-auto border-t border-slate-700/50">
+                <button class="w-full flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 hover:bg-slate-700 text-sm font-medium rounded-lg border border-slate-600 transition-colors">
+                    <i class="ph ph-download-simple"></i> Sync Nutshell Data
+                </button>
+            </div>
+        </aside>
+
+        <!-- PANE 2: CRM View (Middle) -->
+        <section class="glass-pane flex-1 flex flex-col min-w-0 overflow-hidden relative">
+            
+            <!-- List View (Default) -->
+            <div id="view-account-list" class="flex flex-col h-full w-full absolute inset-0 transition-transform duration-300">
+                <div class="p-4 border-b border-slate-700/50 flex items-center justify-between shrink-0 bg-slate-800/30 sticky top-0 z-10 backdrop-blur-md">
+                    <h2 class="font-semibold text-lg flex items-center gap-2">
+                        <i class="ph ph-buildings text-brand-accent"></i> Active Accounts
+                    </h2>
+                    <div class="relative">
+                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" placeholder="Search accounts..." class="bg-slate-900 border border-slate-600 rounded-full pl-9 pr-4 py-1.5 text-sm w-64 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 placeholder-slate-500">
+                    </div>
+                </div>
+                
+                <div id="account-list-container" class="flex-1 overflow-y-auto p-4 space-y-2">
+                    <!-- Accounts listed here -->
+                </div>
+            </div>
+            
+            <!-- Detail View (Hidden by default) -->
+            <div id="view-account-detail" class="flex flex-col h-full w-full absolute inset-0 translate-x-full transition-transform duration-300 bg-slate-900/40">
+                <!-- Header -->
+                <div class="p-5 border-b border-slate-700/50 shrink-0 bg-slate-800/50 backdrop-blur-md sticky top-0 z-10">
+                    <button onclick="showAccountList()" class="text-sm text-slate-400 hover:text-white flex items-center gap-1 mb-3 transition-colors">
+                        <i class="ph ph-arrow-left"></i> Back to list
+                    </button>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h2 id="detail-name" class="text-2xl font-bold text-white tracking-tight">Account Name</h2>
+                            <div class="flex items-center gap-3 mt-2 text-sm text-slate-400">
+                                <span id="detail-industry" class="flex items-center gap-1"><i class="ph ph-briefcase"></i> Industry</span>
+                                <span id="detail-territory" class="flex items-center gap-1"><i class="ph ph-map-pin"></i> Territory</span>
+                                <span id="detail-tier" class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs border border-slate-600">Tier</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm text-slate-400">YTD Revenue</div>
+                            <div id="detail-revenue" class="text-xl font-semibold text-emerald-400">$0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Detail Content -->
+                <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                    
+                    <!-- Contacts -->
+                    <div>
+                        <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3 flex items-center gap-2">
+                            <i class="ph ph-users"></i> Key Contacts
+                        </h3>
+                        <div id="detail-contacts" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Quotes & EDDs Row -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3 flex items-center gap-2">
+                                <i class="ph ph-file-text"></i> Recent Quotes
+                            </h3>
+                            <div id="detail-quotes" class="space-y-2">
+                                <!-- Populated by JS -->
+                                <div class="text-sm text-slate-500 italic">No quotes found.</div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-sm uppercase tracking-wider text-slate-400 font-semibold mb-3 flex items-center gap-2">
+                                <i class="ph ph-database"></i> EDD Submissions
+                            </h3>
+                            <div id="detail-edds" class="space-y-2">
+                                <!-- Populated by JS -->
+                                <div class="text-sm text-slate-500 italic">No EDD submissions found.</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+
+        </section>
+
+        <!-- PANE 3: Wizard RAG Chat (Right) -->
+        <aside class="glass-pane w-[400px] flex flex-col shrink-0 overflow-hidden relative border-l-2 border-brand-900/50 shadow-2xl shadow-brand-900/20">
+            <!-- Header -->
+            <div class="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/50 backdrop-blur-md z-10 shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="h-8 w-8 rounded bg-brand-900 flex items-center justify-center border border-brand-500/30">
+                        <i class="ph-fill ph-magic-wand text-brand-accent text-lg"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-semibold text-white leading-tight">Orbit Wizard</h2>
+                        <div class="text-[10px] text-brand-accent uppercase tracking-widest font-semibold">Agentic RAG Active</div>
+                    </div>
+                </div>
+                <!-- Context Indicator -->
+                <div id="wizard-context-badge" class="px-2 py-1 bg-slate-700 text-xs rounded border border-slate-600 text-slate-300 flex items-center gap-1 hidden">
+                    <i class="ph ph-link"></i> <span id="wizard-context-text" class="truncate max-w-[100px]">Account</span>
+                </div>
+            </div>
+            
+            <!-- Chat History -->
+            <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Welcome Message -->
+                <div class="flex gap-3 max-w-[90%]">
+                    <div class="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700">
+                        <i class="ph-fill ph-magic-wand text-brand-accent text-sm"></i>
+                    </div>
+                    <div class="bg-slate-800 border border-slate-700 text-white p-3 rounded-2xl rounded-tl-none text-sm leading-relaxed prose prose-invert max-w-none">
+                        <p>I am the Orbit Wizard, powered by <strong>Claude 3.7 Sonnet</strong> and connected to your production ChromaDB vault.</p>
+                        <p>I can reference fee schedules, compliance rules (RCRA/NCDEQ), and account CRM context. What do you need?</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Typing Indicator -->
+            <div id="typing-indicator" class="px-4 py-2 hidden">
+                <div class="flex gap-3 max-w-[90%]">
+                    <div class="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0 border border-slate-700">
+                        <i class="ph-fill ph-magic-wand text-brand-accent text-sm"></i>
+                    </div>
+                    <div class="bg-slate-800/80 border border-slate-700 rounded-2xl rounded-tl-none px-4 py-3 flex items-center justify-center">
+                        <div class="dot-flashing"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="p-4 border-t border-slate-700/50 bg-slate-800/30 backdrop-blur-md shrink-0">
+                <form id="chat-form" class="relative">
+                    <textarea 
+                        id="chat-input" 
+                        rows="2" 
+                        class="w-full bg-slate-900 border border-slate-600 rounded-xl pl-4 pr-12 py-3 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 placeholder-slate-500 resize-none transition-colors scrollbar-none"
+                        placeholder="Ask about pricing, regulations, or accounts..."
+                        onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChat(); }"
+                    ></textarea>
+                    <button type="button" onclick="submitChat()" class="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg bg-brand-600 hover:bg-brand-500 text-white flex items-center justify-center transition-colors">
+                        <i class="ph-bold ph-paper-plane-right"></i>
+                    </button>
+                    <!-- Formatting hint -->
+                    <div class="absolute -top-6 right-0 text-[10px] text-slate-500">
+                        Shift+Enter for newline
+                    </div>
+                </form>
+            </div>
+        </aside>
+        
+    </main>
+
+    <!-- App Logic -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
