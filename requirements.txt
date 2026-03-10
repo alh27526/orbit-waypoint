@@ -31,3 +31,4 @@ gunicorn>=21.2.0
 
 # Testing
 pytest>=9.0.0
+flask-limiter==4.1.1

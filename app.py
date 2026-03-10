@@ -4,6 +4,8 @@ import time
 from datetime import datetime
 from flask import Flask, jsonify, request, send_from_directory, Response
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 # Arize Phoenix tracing imports
@@ -40,6 +42,19 @@ from models import db, User, Account, Contact, Quote, Activity, EddSubmission
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "super_secret_demo_key")
 CORS(app)
+
+# ---------------------------------------------------------------------------
+# Rate Limiting — protects Anthropic API key and prevents abuse
+# Disabled automatically in TESTING mode (no changes needed to test suite)
+# ---------------------------------------------------------------------------
+_TESTING = os.getenv("TESTING", "0") == "1"
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    enabled=not _TESTING,
+    storage_uri="memory://",   # swap for redis:// in production if desired
+)
 
 # ---------------------------------------------------------------------------
 # Database — SQLite for dev, PostgreSQL for production
@@ -198,6 +213,7 @@ def get_territory_health():
 # ---------------------------------------------------------------------------
 
 @app.route('/api/activities', methods=['POST'])
+@limiter.limit("10 per minute")
 def create_activity():
     data = request.json
     activity = Activity(
@@ -213,6 +229,7 @@ def create_activity():
 
 
 @app.route('/api/quotes', methods=['POST'])
+@limiter.limit("10 per minute")
 def create_quote():
     data = request.json
     quote = Quote(
@@ -235,6 +252,7 @@ def create_quote():
 # ---------------------------------------------------------------------------
 
 @app.route('/api/wizard/query', methods=['POST'])
+@limiter.limit("20 per hour")        # protect Anthropic API key from exhaustion
 def wizard_query():
     data = request.json
     query = data.get('query', '')
