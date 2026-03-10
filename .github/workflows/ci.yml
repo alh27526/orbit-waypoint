@@ -1,0 +1,84 @@
+name: Orbit CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: 🧪 Integration Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: 🌱 Seed test database
+        run: python seed_data.py
+
+      - name: 🧪 Run pytest
+        env:
+          # CI has no real API keys — Wizard tests run in fallback/offline mode
+          ANTHROPIC_API_KEY: ""
+          FLASK_SECRET_KEY: "ci-test-secret-not-for-production"
+          TESTING: "1"
+        run: pytest tests/ -v --tb=short
+
+  lint:
+    name: 🔍 Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Install lint tools
+        run: pip install flake8
+
+      - name: 🔍 Run flake8 (errors only)
+        run: |
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 app.py models.py vault_ingest.py --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  security:
+    name: 🔐 Secret Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Check that .env is not committed
+        run: |
+          if git ls-files --error-unmatch .env 2>/dev/null; then
+            echo "❌ ERROR: .env is tracked by git! Remove it with: git rm --cached .env"
+            exit 1
+          else
+            echo "✅ .env is not tracked by git — safe."
+          fi
+
+      - name: 🔐 Scan for hardcoded secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
